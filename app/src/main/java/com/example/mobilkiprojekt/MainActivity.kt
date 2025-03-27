@@ -1,5 +1,11 @@
 package com.example.mobilkiprojekt
 
+import android.Manifest
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -44,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -57,17 +64,91 @@ import androidx.navigation.compose.rememberNavController
 import com.example.mobilkiprojekt.ui.theme.MobilkiProjektTheme
 import kotlinx.coroutines.delay
 import java.time.LocalTime
+import java.util.Calendar
 import kotlin.math.abs
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
 
+        // Sprawdź i poproś o uprawnienia
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    1001
+                )
+            }
+        }
+
+        // Przywróć alarmy przy starcie aplikacji
+        restoreAlarms()
+
+        enableEdgeToEdge()
         setContent {
             MobilkiProjektTheme {
                 AppNavigation()
+            }
+        }
+    }
+
+    private fun restoreAlarms() {
+        val sharedPref = getSharedPreferences("HARMONOGRAM_PREFS", Context.MODE_PRIVATE)
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        // Lista wszystkich możliwych aktywności
+        val activities = listOf(
+            "sniadanie" to Pair("Śniadanie dla kota", "Czas nakarmić kota!"),
+            "obiad" to Pair("Obiad dla kota", "Czas na obiad dla kota!"),
+            "kolacja" to Pair("Kolacja dla kota", "Czas na kolację dla kota!"),
+            "woda" to Pair("Zmiana wody", "Czas zmienić wodę kotu!"),
+            "zabawa" to Pair("Pora zabawy", "Czas pobawić się z kotem!"),
+            "kuweta" to Pair("Kuweta", "Czas wyczyścić kuwetę!"),
+            "leki" to Pair("Leki", "Czas podać leki kotu!")
+        )
+
+        activities.forEach { (key, messages) ->
+            sharedPref.getString(key, null)?.let { timeString ->
+                val parts = timeString.split(":")
+                val time = LocalTime.of(parts[0].toInt(), parts[1].toInt())
+
+                val intent = Intent(this, NotificationReceiver::class.java).apply {
+                    putExtra("title", messages.first)
+                    putExtra("message", messages.second)
+                }
+
+                val pendingIntent = PendingIntent.getBroadcast(
+                    this,
+                    messages.first.hashCode(),
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                val calendar = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, time.hour)
+                    set(Calendar.MINUTE, time.minute)
+                    set(Calendar.SECOND, 0)
+
+                    if (timeInMillis <= System.currentTimeMillis()) {
+                        add(Calendar.DAY_OF_YEAR, 1)
+                    }
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        calendar.timeInMillis,
+                        pendingIntent
+                    )
+                } else {
+                    alarmManager.setExact(
+                        AlarmManager.RTC_WAKEUP,
+                        calendar.timeInMillis,
+                        pendingIntent
+                    )
+                }
             }
         }
     }
@@ -300,14 +381,76 @@ fun ScrollableNumberPicker(
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun HarmonogramScreen() {
-    // Stan dla każdej z godzin
-    var sniadanie by remember { mutableStateOf(LocalTime.of(8, 0)) }
-    var obiad by remember { mutableStateOf(LocalTime.of(14, 0)) }
-    var kolacja by remember { mutableStateOf(LocalTime.of(19, 0)) }
-    var woda by remember { mutableStateOf(LocalTime.of(12, 0)) }
-    var zabawa by remember { mutableStateOf(LocalTime.of(18, 0)) }
-    var kuweta by remember { mutableStateOf(LocalTime.of(9, 0)) }
-    var leki by remember { mutableStateOf(LocalTime.of(10, 0)) }
+    val context = LocalContext.current
+
+    fun scheduleNotification(time: LocalTime, title: String, message: String) {
+        try {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(context, NotificationReceiver::class.java).apply {
+                putExtra("title", title)
+                putExtra("message", message)
+            }
+
+            // Używamy tytułu jako unikalnego requestCode
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                title.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val calendar = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, time.hour)
+                set(Calendar.MINUTE, time.minute)
+                set(Calendar.SECOND, 0)
+
+                if (timeInMillis <= System.currentTimeMillis()) {
+                    add(Calendar.DAY_OF_YEAR, 1)
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    val dataStore = rememberDataStore()
+
+    // Stan dla każdej z godzin z odczytem z SharedPreferences
+    var sniadanie by remember {
+        mutableStateOf(dataStore.getTime("sniadanie", LocalTime.of(8, 0)))
+    }
+    var obiad by remember {
+        mutableStateOf(dataStore.getTime("obiad", LocalTime.of(14, 0)))
+    }
+    var kolacja by remember {
+        mutableStateOf(dataStore.getTime("kolacja", LocalTime.of(19, 0)))
+    }
+    var woda by remember {
+        mutableStateOf(dataStore.getTime("woda", LocalTime.of(12, 0)))
+    }
+    var zabawa by remember {
+        mutableStateOf(dataStore.getTime("zabawa", LocalTime.of(18, 0)))
+    }
+    var kuweta by remember {
+        mutableStateOf(dataStore.getTime("kuweta", LocalTime.of(9, 0)))
+    }
+    var leki by remember {
+        mutableStateOf(dataStore.getTime("leki", LocalTime.of(10, 0)))
+    }
 
     // Stan dla widoczności time pickerów
     var showSniadaniePicker by remember { mutableStateOf(false) }
@@ -317,6 +460,7 @@ fun HarmonogramScreen() {
     var showZabawaPicker by remember { mutableStateOf(false) }
     var showKuwetaPicker by remember { mutableStateOf(false) }
     var showLekiPicker by remember { mutableStateOf(false) }
+
 
     Box(
         modifier = Modifier
@@ -353,7 +497,13 @@ fun HarmonogramScreen() {
                         onCancel = { showSniadaniePicker = false },
                         onConfirm = { hour, minute ->
                             sniadanie = LocalTime.of(hour, minute)
+                            dataStore.saveTime("sniadanie", sniadanie)
                             showSniadaniePicker = false
+                            scheduleNotification(
+                                sniadanie,
+                                "Śniadanie dla kota",
+                                "Czas nakarmić kota!"
+                            )
                         },
                         initialHour = sniadanie.hour,
                         initialMinute = sniadanie.minute
@@ -508,7 +658,13 @@ fun HarmonogramItem(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable(onClick = onClick),
+            .clickable {
+                try {
+                    onClick()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            },
         colors = CardDefaults.cardColors(
             containerColor = colorResource(id = R.color.rozowy)
         )
@@ -606,31 +762,6 @@ fun TimePickerDialog(
         titleContentColor = colorResource(id = R.color.kremowy),
         textContentColor = colorResource(id = R.color.kremowy)
     )
-}
-
-@Composable
-fun NumberPicker(
-    value: Int,
-    onValueChange: (Int) -> Unit,
-    range: IntRange
-) {
-    Column {
-        Button(onClick = {
-            if (value < range.last) onValueChange(value + 1)
-        }) {
-            Text("↑")
-        }
-        Text(
-            text = value.toString(),
-            modifier = Modifier.padding(horizontal = 16.dp),
-            fontSize = 24.sp
-        )
-        Button(onClick = {
-            if (value > range.first) onValueChange(value - 1)
-        }) {
-            Text("↓")
-        }
-    }
 }
 
 @Composable
