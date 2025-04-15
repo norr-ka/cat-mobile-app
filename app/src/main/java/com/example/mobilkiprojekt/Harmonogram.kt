@@ -22,17 +22,25 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,26 +62,47 @@ import kotlin.math.abs
 @Composable
 fun HarmonogramScreen(navController: NavController) {
     val context = LocalContext.current
+    val dataStore = rememberDataStore()
 
-    fun scheduleNotification(time: LocalTime, title: String, message: String) {
+    // Lista przypomnień z możliwością dodawania i usuwania
+    val reminders = remember { mutableStateListOf<Reminder>() }
+
+
+
+    // Zapisywanie przypomnień przy zmianie
+    LaunchedEffect(reminders) {
+        if (reminders.isNotEmpty()) {
+            dataStore.saveReminders(reminders)
+        }
+    }
+
+    // Stan dla nowego przypomnienia
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newReminderTitle by remember { mutableStateOf("") }
+    var newNotificationTitle by remember { mutableStateOf("Przypomnienie") }
+    var newNotificationMessage by remember { mutableStateOf("") }
+    var newReminderTime by remember { mutableStateOf(LocalTime.now()) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    // Funkcja do planowania powiadomienia
+    fun scheduleNotification(reminder: Reminder) {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val intent = Intent(context, NotificationReceiver::class.java).apply {
-                putExtra("title", title)
-                putExtra("message", message)
+                putExtra("title", reminder.notificationTitle)
+                putExtra("message", reminder.notificationMessage)
             }
 
-            // Używamy tytułu jako unikalnego requestCode
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                title.hashCode(),
+                reminder.id.hashCode(),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
             val calendar = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, time.hour)
-                set(Calendar.MINUTE, time.minute)
+                set(Calendar.HOUR_OF_DAY, reminder.time.hour)
+                set(Calendar.MINUTE, reminder.time.minute)
                 set(Calendar.SECOND, 0)
 
                 if (timeInMillis <= System.currentTimeMillis()) {
@@ -94,56 +123,46 @@ fun HarmonogramScreen(navController: NavController) {
                     pendingIntent
                 )
             }
+            dataStore.saveReminders(reminders)
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    val dataStore = rememberDataStore()
-
-    // Stan dla każdej z godzin z odczytem z SharedPreferences
-    var sniadanie by remember {
-        mutableStateOf(dataStore.getTime("sniadanie", LocalTime.of(8, 0)))
-    }
-    var obiad by remember {
-        mutableStateOf(dataStore.getTime("obiad", LocalTime.of(14, 0)))
-    }
-    var kolacja by remember {
-        mutableStateOf(dataStore.getTime("kolacja", LocalTime.of(19, 0)))
-    }
-    var woda by remember {
-        mutableStateOf(dataStore.getTime("woda", LocalTime.of(12, 0)))
-    }
-    var zabawa by remember {
-        mutableStateOf(dataStore.getTime("zabawa", LocalTime.of(18, 0)))
-    }
-    var kuweta by remember {
-        mutableStateOf(dataStore.getTime("kuweta", LocalTime.of(9, 0)))
-    }
-    var leki by remember {
-        mutableStateOf(dataStore.getTime("leki", LocalTime.of(10, 0)))
+    // Funkcja do usuwania powiadomienia
+    fun cancelNotification(reminderId: String) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, NotificationReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            reminderId.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
     }
 
-    // Stan dla widoczności time pickerów
-    var showSniadaniePicker by remember { mutableStateOf(false) }
-    var showObiadPicker by remember { mutableStateOf(false) }
-    var showKolacjaPicker by remember { mutableStateOf(false) }
-    var showWodaPicker by remember { mutableStateOf(false) }
-    var showZabawaPicker by remember { mutableStateOf(false) }
-    var showKuwetaPicker by remember { mutableStateOf(false) }
-    var showLekiPicker by remember { mutableStateOf(false) }
-
+    // Wczytanie zapisanych przypomnień przy inicjalizacji
+    LaunchedEffect(Unit) {
+        dataStore.initializeDefaultReminders()
+        val savedReminders = dataStore.getReminders()
+        if (savedReminders.isNotEmpty()) {
+            reminders.addAll(savedReminders)
+            savedReminders.forEach { reminder ->
+                scheduleNotification(reminder)
+            }        }
+   }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colorResource(id = R.color.ciemny))
-    ){
-        // Przycisk powrotu w lewym górnym rogu
+    ) {
+        // Przycisk powrotu
         IconButton(
             onClick = {
                 SoundPlayer.playSound(context, R.raw.miau)
-                navController.navigateUp() // Powrót do poprzedniego ekranu
+                navController.navigateUp()
             },
             modifier = Modifier
                 .padding(top = 46.dp, start = 16.dp)
@@ -156,12 +175,12 @@ fun HarmonogramScreen(navController: NavController) {
             )
         }
 
+        // Lista przypomnień
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp, vertical = 100.dp)
         ) {
-            // Sekcja Jedzenie
             item {
                 Text(
                     text = "Przypomnienia",
@@ -174,150 +193,217 @@ fun HarmonogramScreen(navController: NavController) {
                 )
             }
 
-            // Śniadanie
-            item {
-                HarmonogramItem(
-                    title = "Pora śniadania",
-                    time = sniadanie,
-                    onClick = { showSniadaniePicker = true }
+            items(reminders, key = { it.id }) { reminder ->
+                var showPicker by remember { mutableStateOf(false) }
+
+                ReminderItem(
+                    reminder = reminder,
+                    onTimeClick = { showPicker = true },
+                    onDelete = {
+                        cancelNotification(reminder.id)
+                        reminders.remove(reminder)
+                        dataStore.deleteReminder(reminder.id)
+                    },
+                    onTitleChange = { newTitle ->
+                        val index = reminders.indexOf(reminder)
+                        if (index != -1) {
+                            reminders[index] = reminder.copy(title = newTitle)
+                        }
+                    }
                 )
-                if (showSniadaniePicker) {
+
+                if (showPicker) {
                     TimePickerDialog(
-                        onCancel = { showSniadaniePicker = false },
+                        onCancel = { showPicker = false },
                         onConfirm = { hour, minute ->
-                            sniadanie = LocalTime.of(hour, minute)
-                            dataStore.saveTime("sniadanie", sniadanie)
-                            showSniadaniePicker = false
-                            scheduleNotification(
-                                sniadanie,
-                                "Przypomnienie",
-                                "Pora śniadania!"
-                            )
+                            val newTime = LocalTime.of(hour, minute)
+                            val index = reminders.indexOf(reminder)
+                            if (index != -1) {
+                                // Anulujemy stare powiadomienie
+                                cancelNotification(reminder.id)
+                                // Aktualizujemy czas
+                                reminders[index] = reminder.copy(time = newTime)
+                                // Planujemy nowe powiadomienie
+                                scheduleNotification(reminders[index])
+                            }
+                            showPicker = false
                         },
-                        initialHour = sniadanie.hour,
-                        initialMinute = sniadanie.minute
+                        initialHour = reminder.time.hour,
+                        initialMinute = reminder.time.minute
                     )
                 }
             }
+        }
 
-            // Obiad
-            item {
-                HarmonogramItem(
-                    title = "Pora obiadu",
-                    time = obiad,
-                    onClick = { showObiadPicker = true }
-                )
-                if (showObiadPicker) {
-                    TimePickerDialog(
-                        onCancel = { showObiadPicker = false },
-                        onConfirm = { hour, minute ->
-                            obiad = LocalTime.of(hour, minute)
-                            showObiadPicker = false
+        // Przycisk dodawania nowego przypomnienia
+        FloatingActionButton(
+            onClick = {
+                // Resetowanie pól przed pokazaniem dialogu
+                newReminderTitle = ""
+                newNotificationMessage = ""
+                newReminderTime = LocalTime.now()
+                showAddDialog = true
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(horizontal = 16.dp, vertical = 30.dp),
+            containerColor = colorResource(id = R.color.rozowy),
+            contentColor = colorResource(id = R.color.kremowy)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Dodaj przypomnienie")
+        }
+
+        // Dialog dodawania nowego przypomnienia
+        if (showAddDialog) {
+            AlertDialog(
+                onDismissRequest = { showAddDialog = false },
+                title = { Text("Dodaj nowe przypomnienie", style = TextStyle(fontSize = 20.sp)) },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = newReminderTitle,
+                            onValueChange = { newReminderTitle = it },
+                            label = { Text("Nazwa przypomnienia") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = newNotificationTitle,
+                            onValueChange = { newNotificationTitle = it },
+                            label = { Text("Tytuł powiadomienia") },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = newNotificationMessage,
+                            onValueChange = { newNotificationMessage = it },
+                            label = { Text("Treść powiadomienia") },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        )
+
+                        Button(
+                            onClick = { showTimePicker = true },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp)
+                        ) {
+                            Text("Wybierz godzinę: ${String.format("%02d:%02d", newReminderTime.hour, newReminderTime.minute)}")
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (newReminderTitle.isNotBlank()) {
+                                val newReminder = Reminder(
+                                    id = System.currentTimeMillis().toString(),
+                                    title = newReminderTitle,
+                                    time = newReminderTime,
+                                    notificationTitle = newNotificationTitle,
+                                    notificationMessage = newNotificationMessage
+                                )
+                                reminders.add(newReminder)
+                                scheduleNotification(newReminder)
+                                dataStore.saveReminders(reminders) // Dodaj tę linię
+                                showAddDialog = false
+                            }
                         },
-                        initialHour = obiad.hour,
-                        initialMinute = obiad.minute
+                        enabled = newReminderTitle.isNotBlank()
+                    ) {
+                        Text("Dodaj")
+                    }
+                },
+                dismissButton = {
+                    Button(onClick = { showAddDialog = false }) {
+                        Text("Anuluj")
+                    }
+                },
+                containerColor = colorResource(id = R.color.ciemny),
+                titleContentColor = colorResource(id = R.color.kremowy),
+                textContentColor = colorResource(id = R.color.kremowy)
+            )
+        }
+
+        // Time picker dla nowego przypomnienia
+        if (showTimePicker) {
+            TimePickerDialog(
+                onCancel = { showTimePicker = false },
+                onConfirm = { hour, minute ->
+                    newReminderTime = LocalTime.of(hour, minute)
+                    showTimePicker = false
+                },
+                initialHour = newReminderTime.hour,
+                initialMinute = newReminderTime.minute
+            )
+        }
+    }
+}
+
+@Composable
+fun ReminderItem(
+    reminder: Reminder,
+    onTimeClick: () -> Unit,
+    onDelete: () -> Unit,
+    onTitleChange: (String) -> Unit
+) {
+    var isEditing by remember { mutableStateOf(false) }
+    var editedTitle by remember { mutableStateOf(reminder.title) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorResource(id = R.color.rozowy)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isEditing) {
+                OutlinedTextField(
+                    value = editedTitle,
+                    onValueChange = { it ->
+                        editedTitle = it
+                    },
+                    label = { Text("Nazwa przypomnienia") },  // Wymagany label
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    textStyle = TextStyle(color = colorResource(id = R.color.kremowy)),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = colorResource(id = R.color.rozowy),
+                        unfocusedContainerColor = colorResource(id = R.color.rozowy),
+                        focusedTextColor = colorResource(id = R.color.kremowy),
+                        unfocusedTextColor = colorResource(id = R.color.kremowy)
                     )
-                }
+                )
+            } else {
+                Text(
+                    text = reminder.title,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { isEditing = true },
+                    color = colorResource(id = R.color.kremowy)
+                )
             }
 
-            // Kolacja
-            item {
-                HarmonogramItem(
-                    title = "Pora kolacji",
-                    time = kolacja,
-                    onClick = { showKolacjaPicker = true }
-                )
-                if (showKolacjaPicker) {
-                    TimePickerDialog(
-                        onCancel = { showKolacjaPicker = false },
-                        onConfirm = { hour, minute ->
-                            kolacja = LocalTime.of(hour, minute)
-                            showKolacjaPicker = false
-                        },
-                        initialHour = kolacja.hour,
-                        initialMinute = kolacja.minute
-                    )
-                }
-            }
+            Text(
+                text = String.format("%02d:%02d", reminder.time.hour, reminder.time.minute),
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .clickable(onClick = onTimeClick),
+                color = colorResource(id = R.color.kremowy)
+            )
 
-            // Woda
-            item {
-                HarmonogramItem(
-                    title = "Zmiana wody",
-                    time = woda,
-                    onClick = { showWodaPicker = true }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = colorResource(id = R.color.kremowy)
                 )
-                if (showWodaPicker) {
-                    TimePickerDialog(
-                        onCancel = { showWodaPicker = false },
-                        onConfirm = { hour, minute ->
-                            woda = LocalTime.of(hour, minute)
-                            showWodaPicker = false
-                        },
-                        initialHour = woda.hour,
-                        initialMinute = woda.minute
-                    )
-                }
-            }
-
-            // Zabawa
-            item {
-                HarmonogramItem(
-                    title = "Pora zabawy",
-                    time = zabawa,
-                    onClick = { showZabawaPicker = true }
-                )
-                if (showZabawaPicker) {
-                    TimePickerDialog(
-                        onCancel = { showZabawaPicker = false },
-                        onConfirm = { hour, minute ->
-                            zabawa = LocalTime.of(hour, minute)
-                            showZabawaPicker = false
-                        },
-                        initialHour = zabawa.hour,
-                        initialMinute = zabawa.minute
-                    )
-                }
-            }
-
-            // Kuweta
-            item {
-                HarmonogramItem(
-                    title = "Zmiana kuwety",
-                    time = kuweta,
-                    onClick = { showKuwetaPicker = true }
-                )
-                if (showKuwetaPicker) {
-                    TimePickerDialog(
-                        onCancel = { showKuwetaPicker = false },
-                        onConfirm = { hour, minute ->
-                            kuweta = LocalTime.of(hour, minute)
-                            showKuwetaPicker = false
-                        },
-                        initialHour = kuweta.hour,
-                        initialMinute = kuweta.minute
-                    )
-                }
-            }
-
-            // Leki
-            item {
-                HarmonogramItem(
-                    title = "Leki",
-                    time = leki,
-                    onClick = { showLekiPicker = true }
-                )
-                if (showLekiPicker) {
-                    TimePickerDialog(
-                        onCancel = { showLekiPicker = false },
-                        onConfirm = { hour, minute ->
-                            leki = LocalTime.of(hour, minute)
-                            showLekiPicker = false
-                        },
-                        initialHour = leki.hour,
-                        initialMinute = leki.minute
-                    )
-                }
             }
         }
     }
