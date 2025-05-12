@@ -12,6 +12,9 @@
     <color name="brazowy">#664343</color>
     <color name="bezowy">#795757</color>
     <color name="kremowy">#FFF4E3</color>
+    <color name="kremowy_ciemniejszy">#BD9C92</color>
     <color name="rozowy">#C57B99</color>
+    <color name="rozowy_jasny">#DBABBC</color>
     <color name="rozowy_ciemniejszy">#753E54</color>
+    <color name="czerwony_alert">#C31A1A</color>
 </resources>

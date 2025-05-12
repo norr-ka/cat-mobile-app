@@ -4,22 +4,41 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 
-@Database(entities = [PhotoEntity::class], version = 1)
-abstract class PhotoDatabase : RoomDatabase() {
+// Definicja bazy danych Room
+@Database(
+    entities = [
+        PhotoEntity::class, // Istniejąca encja zdjęć
+        CatEntity::class      // Dodana encja kotów
+    ],
+    version = 2, // Zwiększono wersję bazy danych z powodu dodania nowej tabeli
+    exportSchema = false // Wyłączono eksport schematu (zalecane dla projektów produkcyjnych)
+)
+@TypeConverters(Converters::class) // Dodano globalne konwertery typów dla bazy
+abstract class AppDatabase : RoomDatabase() {
+
+    // Abstrakcyjna metoda zwracająca DAO dla zdjęć
     abstract fun photoDao(): PhotoDao
+    // Abstrakcyjna metoda zwracająca DAO dla kotów
+    abstract fun catDao(): CatDao
 
     companion object {
         @Volatile
-        private var INSTANCE: PhotoDatabase? = null
+        private var INSTANCE: AppDatabase? = null // Instancja Singleton bazy danych
 
-        fun getDatabase(context: Context): PhotoDatabase {
+        // Metoda do pobierania instancji bazy danych (Singleton)
+        fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
-                    PhotoDatabase::class.java,
-                    "photo_database"
-                ).build()
+                    AppDatabase::class.java,
+                    "app_database" // Zmieniono nazwę bazy, aby objąć wszystkie dane
+                )
+                    // Dodano fallbackToDestructiveMigration, aby uprościć migrację
+                    // W aplikacji produkcyjnej należy zaimplementować właściwą strategię migracji
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

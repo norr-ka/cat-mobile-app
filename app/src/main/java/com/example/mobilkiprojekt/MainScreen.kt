@@ -33,7 +33,7 @@ import androidx.navigation.NavController
 
 @Composable
 fun MainScreen(navController: NavController) {
-    val opcjeMenu = listOf("Harmonogram", "Wyposażenie", "Galeria", "Kocia gra")
+    val opcjeMenu = listOf("Harmonogram", "Karta Zdrowia", "Galeria", "Kocia gra")
 
     Box(
         modifier = Modifier
@@ -88,7 +88,7 @@ fun MainScreen(navController: NavController) {
                         onClick = {
                             when (opcja) {
                                 "Harmonogram" -> navController.navigate("harmonogram")
-                                "Wyposażenie" -> navController.navigate("wyposazenie")
+                                "Karta Zdrowia" -> navController.navigate("karta_zdrowia")
                                 "Galeria" -> navController.navigate("galeria")
                                 "Kocia gra" -> navController.navigate("kocia_gra")
                             }

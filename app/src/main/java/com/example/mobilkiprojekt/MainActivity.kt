@@ -122,8 +122,8 @@ fun AppNavigation() {
         composable("harmonogram") {
             HarmonogramScreen(navController)
         }
-        composable("wyposazenie") {
-            WyposazenieScreen(navController)
+        composable("karta_zdrowia") {
+            KartaZdrowiaScreen(navController)
         }
         composable("galeria") {
             GaleriaScreen(navController)

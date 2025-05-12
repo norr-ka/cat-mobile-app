@@ -5,7 +5,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.mobilkiprojekt.data.PhotoDatabase
+import com.example.mobilkiprojekt.data.AppDatabase
 import com.example.mobilkiprojekt.data.PhotoEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,7 +14,7 @@ import java.io.File
 import java.io.FileOutputStream
 
 class GaleriaViewModel(application: Application) : AndroidViewModel(application) {
-    private val photoDao = PhotoDatabase.getDatabase(application).photoDao()
+    private val photoDao = AppDatabase.getDatabase(application).photoDao()
 
     private val _photos = MutableStateFlow<List<PhotoEntity>>(emptyList())
     val photos = _photos.asStateFlow()
