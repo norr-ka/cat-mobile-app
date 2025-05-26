@@ -52,14 +52,16 @@ import com.example.mobilkiprojekt.data.MediaEntity
 import com.example.mobilkiprojekt.viewmodel.GaleriaViewModel
 import com.google.accompanist.pager.HorizontalPager
 import com.google.accompanist.pager.rememberPagerState
-import com.google.common.net.MediaType
+import com.example.mobilkiprojekt.data.MediaType
+import com.example.mobilkiprojekt.viewmodel.GaleriaViewModelFactory
 import java.io.File
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GaleriaScreen(navController: NavController) {
     val context = LocalContext.current
-    val viewModel: GaleriaViewModel = viewModel()
+    val viewModel: GaleriaViewModel = viewModel(factory = GaleriaViewModelFactory(context))
+
     val media by viewModel.media.collectAsState(initial = emptyList())
 
     var selectedMedia by remember { mutableStateOf<MediaEntity?>(null) }
@@ -74,6 +76,7 @@ fun GaleriaScreen(navController: NavController) {
             viewModel.addMediaFromUri(uri, type, context)
         }
     }
+
 
 
     Box(
@@ -112,7 +115,7 @@ fun GaleriaScreen(navController: NavController) {
 
         // Przyciski dodawania zdjęcia
         FloatingActionButton(
-            onClick = { mediaPickerLauncher.launch("image/*") },
+            onClick = { mediaPickerLauncher.launch("*/*") },
             containerColor = colorResource(id = R.color.kremowy),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -121,7 +124,7 @@ fun GaleriaScreen(navController: NavController) {
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
-                contentDescription = "Dodaj zdjęcie",
+                contentDescription = "Dodaj zdjęcie lub film",
                 tint = colorResource(id = R.color.ciemny)
             )
         }
@@ -259,12 +262,11 @@ fun GaleriaScreen(navController: NavController) {
                 }
             )
         }
-
-
-        private fun getMediaType(context: Context, uri: Uri): MediaType {
-            val contentResolver = context.contentResolver
-            val mimeType = contentResolver.getType(uri)
-            return if (mimeType?.startsWith("video/") == true) MediaType.VIDEO else MediaType.PHOTO
-        }
     }
+}
+
+private fun getMediaType(context: Context, uri: Uri): MediaType {
+    val contentResolver = context.contentResolver
+    val mimeType = contentResolver.getType(uri)
+    return if (mimeType?.startsWith("video/") == true) MediaType.VIDEO else MediaType.PHOTO
 }
