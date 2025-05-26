@@ -34,6 +34,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
@@ -51,6 +52,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -175,23 +177,24 @@ fun HarmonogramScreen(navController: NavController) {
             )
         }
 
+        Text(
+            text = "Harmonogram",
+            style = MaterialTheme.typography.headlineLarge.copy(
+                color = colorResource(id = R.color.kremowy),
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 50.dp)
+        )
+
         // Lista przypomnień
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp, vertical = 100.dp)
         ) {
-            item {
-                Text(
-                    text = "Przypomnienia",
-                    style = TextStyle(
-                        fontSize = 32.sp,
-                        color = colorResource(id = R.color.kremowy),
-                        fontFamily = font_happy
-                    ),
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            }
 
             items(reminders, key = { it.id }) { reminder ->
                 var showPicker by remember { mutableStateOf(false) }

@@ -48,7 +48,6 @@ import java.util.Calendar
 import java.util.UUID
 
 // Prosty ViewModel do zarządzania stanem i interakcją z DAO
-// W bardziej złożonej aplikacji można użyć Hilt/Dagger do wstrzykiwania zależności
 class KartaZdrowiaViewModel(private val catDao: CatDao) : androidx.lifecycle.ViewModel() {
 
     // Przepływ (Flow) przechowujący listę kotów z bazy danych
@@ -84,12 +83,14 @@ class KartaZdrowiaViewModel(private val catDao: CatDao) : androidx.lifecycle.Vie
                 val updatedCat = it.copy(medicalHistory = updatedHistory)
                 // Zapisz zaktualizowanego kota w bazie
                 catDao.update(updatedCat)
+                withContext(Dispatchers.Main) {
+                    catDao.getAllCats()
+                }
             }
         }
     }
 
-    // *** NOWA FUNKCJA ***
-    // Funkcja do usuwania wpisu medycznego (opcjonalnie, jeśli potrzebne)
+    // Funkcja do usuwania wpisu medycznego
     fun removeMedicalEventFromCat(catId: Long, eventId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val cat = catDao.getCatById(catId)
@@ -97,6 +98,9 @@ class KartaZdrowiaViewModel(private val catDao: CatDao) : androidx.lifecycle.Vie
                 val updatedHistory = it.medicalHistory.filterNot { event -> event.id == eventId }
                 val updatedCat = it.copy(medicalHistory = updatedHistory)
                 catDao.update(updatedCat)
+                withContext(Dispatchers.Main) {
+                    catDao.getAllCats() // Odświeżenie Flow
+                }
             }
         }
     }
@@ -237,6 +241,14 @@ fun KartaZdrowiaScreen(navController: NavController) {
                 )
             }
         }
+
+        LaunchedEffect(catProfiles) {
+            selectedCat?.let { currentSelected ->
+                val updatedCat = catProfiles.find { it.id == currentSelected.id }
+                selectedCat = updatedCat
+            }
+        }
+
         // Dialog dodawania wpisu medycznego
         if (showAddMedicalEventDialog) {
             selectedCat?.let { cat ->
@@ -245,7 +257,6 @@ fun KartaZdrowiaScreen(navController: NavController) {
                     onSave = { newEvent ->
                         viewModel.addMedicalEventToCat(cat.id, newEvent)
                         showAddMedicalEventDialog = false
-                        selectedCat = viewModel.catProfiles.value.find { it.id == cat.id }
                     }
                 )
             }
@@ -287,14 +298,14 @@ fun CatProfileCard(profile: CatEntity, onClick: () -> Unit) {
             Text(
                 text = "${profile.breed}, $ageString",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = colorResource(id = R.color.kremowy_ciemniejszy) // Ciemniejszy dla kontrastu
+                    color = colorResource(id = R.color.kremowy)
                 )
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Waga: ${profile.weight} kg",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = colorResource(id = R.color.kremowy_ciemniejszy)
+                    color = colorResource(id = R.color.kremowy)
                 )
             )
         }
@@ -362,26 +373,26 @@ fun AddEditCatDialog(cat: CatEntity?, onDismiss: () -> Unit, onSave: (CatEntity)
                 OutlinedTextField( // Zmieniono na OutlinedTextField dla lepszego wyglądu
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Imię", color = colorResource(id = R.color.kremowy_ciemniejszy)) },
+                    label = { Text("Imię", color = colorResource(id = R.color.kremowy)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = TextFieldDefaults.outlinedTextFieldColors( // Dostosowanie kolorów
                         cursorColor = colorResource(id = R.color.rozowy),
                         focusedBorderColor = colorResource(id = R.color.rozowy),
-                        unfocusedBorderColor = colorResource(id = R.color.kremowy_ciemniejszy),
+                        unfocusedBorderColor = colorResource(id = R.color.kremowy),
                     )
                 )
 
                 OutlinedTextField(
                     value = breed,
                     onValueChange = { breed = it },
-                    label = { Text("Rasa", color = colorResource(id = R.color.kremowy_ciemniejszy)) },
+                    label = { Text("Rasa", color = colorResource(id = R.color.kremowy)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = TextFieldDefaults.outlinedTextFieldColors(
                         cursorColor = colorResource(id = R.color.rozowy),
                         focusedBorderColor = colorResource(id = R.color.rozowy),
-                        unfocusedBorderColor = colorResource(id = R.color.kremowy_ciemniejszy),
+                        unfocusedBorderColor = colorResource(id = R.color.kremowy),
                     )
                 )
 
@@ -389,7 +400,7 @@ fun AddEditCatDialog(cat: CatEntity?, onDismiss: () -> Unit, onSave: (CatEntity)
                 OutlinedTextField(
                     value = birthDate.format(dateFormatter), // Wyświetlanie sformatowanej daty
                     onValueChange = { /* Odczyt tylko do wyświetlania */ },
-                    label = { Text("Data urodzenia", color = colorResource(id = R.color.kremowy_ciemniejszy)) },
+                    label = { Text("Data urodzenia", color = colorResource(id = R.color.kremowy)) },
                     modifier = Modifier.fillMaxWidth(),
                     readOnly = true, // Pole tylko do odczytu
                     trailingIcon = { // Ikona do otwierania DatePicker
@@ -405,8 +416,8 @@ fun AddEditCatDialog(cat: CatEntity?, onDismiss: () -> Unit, onSave: (CatEntity)
                         disabledTextColor = colorResource(id = R.color.kremowy), // Kolor tekstu gdy readOnly
                         cursorColor = colorResource(id = R.color.rozowy),
                         focusedBorderColor = colorResource(id = R.color.rozowy),
-                        unfocusedBorderColor = colorResource(id = R.color.kremowy_ciemniejszy),
-                        disabledBorderColor = colorResource(id = R.color.kremowy_ciemniejszy) // Kolor ramki gdy readOnly
+                        unfocusedBorderColor = colorResource(id = R.color.kremowy),
+                        disabledBorderColor = colorResource(id = R.color.kremowy) // Kolor ramki gdy readOnly
                     )
                 )
 
@@ -414,43 +425,42 @@ fun AddEditCatDialog(cat: CatEntity?, onDismiss: () -> Unit, onSave: (CatEntity)
                 OutlinedTextField(
                     value = weight,
                     onValueChange = { weight = it.filter { char -> char.isDigit() || char == '.' } }, // Akceptuj tylko cyfry i kropkę
-                    label = { Text("Waga (kg)", color = colorResource(id = R.color.kremowy_ciemniejszy)) },
+                    label = { Text("Waga (kg)", color = colorResource(id = R.color.kremowy)) },
                     modifier = Modifier.fillMaxWidth(),
-                    // keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberDecimal),
                     singleLine = true,
                     colors = TextFieldDefaults.outlinedTextFieldColors(
                         cursorColor = colorResource(id = R.color.rozowy),
                         focusedBorderColor = colorResource(id = R.color.rozowy),
-                        unfocusedBorderColor = colorResource(id = R.color.kremowy_ciemniejszy),
+                        unfocusedBorderColor = colorResource(id = R.color.kremowy),
                     )
                 )
 
                 OutlinedTextField(
                     value = allergies,
                     onValueChange = { allergies = it },
-                    label = { Text("Alergie", color = colorResource(id = R.color.kremowy_ciemniejszy)) },
+                    label = { Text("Alergie", color = colorResource(id = R.color.kremowy)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = TextFieldDefaults.outlinedTextFieldColors(
                         cursorColor = colorResource(id = R.color.rozowy),
                         focusedBorderColor = colorResource(id = R.color.rozowy),
-                        unfocusedBorderColor = colorResource(id = R.color.kremowy_ciemniejszy),
+                        unfocusedBorderColor = colorResource(id = R.color.kremowy),
                     )
                 )
 
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Notatki", color = colorResource(id = R.color.kremowy_ciemniejszy)) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp), // Minimalna wysokość dla notatek
+                    label = { Text("Notatki", color = colorResource(id = R.color.kremowy)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 100.dp), // Minimalna wysokość dla notatek
                     colors = TextFieldDefaults.outlinedTextFieldColors(
                         cursorColor = colorResource(id = R.color.rozowy),
                         focusedBorderColor = colorResource(id = R.color.rozowy),
-                        unfocusedBorderColor = colorResource(id = R.color.kremowy_ciemniejszy),
+                        unfocusedBorderColor = colorResource(id = R.color.kremowy),
                     )
                 )
 
-                // TODO: Dodać interfejs do zarządzania historią medyczną (dodawanie/usuwanie wpisów)
-                // Na razie jest tylko pusta lista lub ta przekazana
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -459,7 +469,7 @@ fun AddEditCatDialog(cat: CatEntity?, onDismiss: () -> Unit, onSave: (CatEntity)
                     horizontalArrangement = Arrangement.End // Przyciski na końcu
                 ) {
                     TextButton(onClick = onDismiss) { // Przycisk anulowania
-                        Text("Anuluj", color = colorResource(id = R.color.kremowy_ciemniejszy))
+                        Text("Anuluj", color = colorResource(id = R.color.kremowy))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button( // Przycisk zapisu
@@ -478,8 +488,6 @@ fun AddEditCatDialog(cat: CatEntity?, onDismiss: () -> Unit, onSave: (CatEntity)
                                     notes = notes.trim()
                                 )
                                 onSave(catToSave)
-                            } else {
-                                // TODO: Pokaż komunikat o błędzie walidacji
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = colorResource(id = R.color.rozowy))
@@ -512,12 +520,16 @@ fun CatDetailsDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = colorResource(id = R.color.brazowy))
         ) {
             Column(
-                modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Sekcja podstawowych informacji (bez zmian)
@@ -564,7 +576,7 @@ fun CatDetailsDialog(
                 if (cat.medicalHistory.isEmpty()) {
                     Text(
                         text = "Brak wpisów",
-                        style = MaterialTheme.typography.bodyMedium.copy(color = colorResource(id = R.color.kremowy_ciemniejszy)),
+                        style = MaterialTheme.typography.bodyMedium.copy(color = colorResource(id = R.color.kremowy)),
                         modifier = Modifier.padding(start = 8.dp)
                     )
                 } else {
@@ -580,7 +592,6 @@ fun CatDetailsDialog(
                                     style = MaterialTheme.typography.bodyMedium.copy(color = colorResource(id = R.color.kremowy)),
                                     modifier = Modifier.weight(1f) // Pozwala tekstowi się rozciągnąć
                                 )
-                                // *** NOWY PRZYCISK USUWANIA WPISU ***
                                 IconButton(
                                     onClick = { onDeleteMedicalEvent(event.id) },
                                     modifier = Modifier.size(24.dp) // Mały przycisk usuwania
@@ -627,9 +638,11 @@ fun CatDetailsDialog(
                 // Przycisk Zamknij (bez zmian)
                 TextButton(
                     onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 8.dp)
                 ) {
-                    Text("Zamknij", color = colorResource(id = R.color.kremowy_ciemniejszy))
+                    Text("Zamknij", color = colorResource(id = R.color.kremowy))
                 }
             }
         }
@@ -664,7 +677,7 @@ fun DetailRow(label: String, value: String) {
         Text(
             text = "$label: ",
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = colorResource(id = R.color.kremowy_ciemniejszy), // Kolor etykiety
+                color = colorResource(id = R.color.kremowy), // Kolor etykiety
                 fontWeight = FontWeight.SemiBold
             ),
             modifier = Modifier.width(100.dp) // Stała szerokość etykiety dla wyrównania
@@ -709,7 +722,9 @@ fun AddMedicalEventDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(16.dp), // Zwiększono padding dla lepszego wyglądu
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = colorResource(id = R.color.brazowy))
         ) {
@@ -734,13 +749,15 @@ fun AddMedicalEventDialog(
                         value = eventType,
                         onValueChange = {}, // Puste, bo wybieramy z listy
                         readOnly = true,
-                        label = { Text("Typ zdarzenia", color = colorResource(id = R.color.kremowy_ciemniejszy)) },
+                        label = { Text("Typ zdarzenia", color = colorResource(id = R.color.kremowy)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedDropdown) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(), // Ważne dla ExposedDropdownMenuBox
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(), // Ważne dla ExposedDropdownMenuBox
                         colors = TextFieldDefaults.outlinedTextFieldColors(
                             disabledTextColor = colorResource(id = R.color.kremowy),
                             cursorColor = colorResource(id = R.color.rozowy), focusedBorderColor = colorResource(id = R.color.rozowy),
-                            unfocusedBorderColor = colorResource(id = R.color.kremowy_ciemniejszy), disabledBorderColor = colorResource(id = R.color.kremowy_ciemniejszy)
+                            unfocusedBorderColor = colorResource(id = R.color.kremowy), disabledBorderColor = colorResource(id = R.color.kremowy)
                         )
                     )
                     ExposedDropdownMenu(
@@ -765,7 +782,7 @@ fun AddMedicalEventDialog(
                 OutlinedTextField(
                     value = eventDate.format(dateFormatter),
                     onValueChange = { },
-                    label = { Text("Data zdarzenia", color = colorResource(id = R.color.kremowy_ciemniejszy)) },
+                    label = { Text("Data zdarzenia", color = colorResource(id = R.color.kremowy)) },
                     modifier = Modifier.fillMaxWidth(),
                     readOnly = true,
                     trailingIcon = {
@@ -776,7 +793,7 @@ fun AddMedicalEventDialog(
                     colors = TextFieldDefaults.outlinedTextFieldColors(
                         disabledTextColor = colorResource(id = R.color.kremowy),
                         cursorColor = colorResource(id = R.color.rozowy), focusedBorderColor = colorResource(id = R.color.rozowy),
-                        unfocusedBorderColor = colorResource(id = R.color.kremowy_ciemniejszy), disabledBorderColor = colorResource(id = R.color.kremowy_ciemniejszy)
+                        unfocusedBorderColor = colorResource(id = R.color.kremowy), disabledBorderColor = colorResource(id = R.color.kremowy)
                     )
                 )
 
@@ -784,11 +801,13 @@ fun AddMedicalEventDialog(
                 OutlinedTextField(
                     value = eventDescription,
                     onValueChange = { eventDescription = it },
-                    label = { Text("Opis", color = colorResource(id = R.color.kremowy_ciemniejszy)) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp), // Minimalna wysokość
+                    label = { Text("Opis", color = colorResource(id = R.color.kremowy)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 80.dp), // Minimalna wysokość
                     colors = TextFieldDefaults.outlinedTextFieldColors(
                         cursorColor = colorResource(id = R.color.rozowy),
-                        focusedBorderColor = colorResource(id = R.color.rozowy), unfocusedBorderColor = colorResource(id = R.color.kremowy_ciemniejszy),
+                        focusedBorderColor = colorResource(id = R.color.rozowy), unfocusedBorderColor = colorResource(id = R.color.kremowy),
                     )
                 )
 
@@ -797,7 +816,7 @@ fun AddMedicalEventDialog(
                 // Przyciski Anuluj/Zapisz
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) {
-                        Text("Anuluj", color = colorResource(id = R.color.kremowy_ciemniejszy))
+                        Text("Anuluj", color = colorResource(id = R.color.kremowy))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(

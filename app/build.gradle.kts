@@ -73,5 +73,7 @@ dependencies {
     implementation("com.google.accompanist:accompanist-pager:0.34.0")
     implementation("com.google.accompanist:accompanist-pager-indicators:0.34.0")
     implementation("com.google.accompanist:accompanist-systemuicontroller:0.34.0")
+    implementation ("androidx.media3:media3-exoplayer:1.1.1")
+    implementation ("androidx.media3:media3-ui:1.1.1")
 
 }

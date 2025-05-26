@@ -9,17 +9,17 @@ import androidx.room.TypeConverters
 // Definicja bazy danych Room
 @Database(
     entities = [
-        PhotoEntity::class, // Istniejąca encja zdjęć
-        CatEntity::class      // Dodana encja kotów
+        MediaEntity::class,
+        CatEntity::class
     ],
-    version = 2, // Zwiększono wersję bazy danych z powodu dodania nowej tabeli
-    exportSchema = false // Wyłączono eksport schematu (zalecane dla projektów produkcyjnych)
+    version = 3,
+    exportSchema = false // Wyłączono eksport schematu
 )
 @TypeConverters(Converters::class) // Dodano globalne konwertery typów dla bazy
 abstract class AppDatabase : RoomDatabase() {
 
-    // Abstrakcyjna metoda zwracająca DAO dla zdjęć
-    abstract fun photoDao(): PhotoDao
+    // Abstrakcyjna metoda zwracająca DAO dla mediów
+    abstract fun photoDao(): MediaDao
     // Abstrakcyjna metoda zwracająca DAO dla kotów
     abstract fun catDao(): CatDao
 
